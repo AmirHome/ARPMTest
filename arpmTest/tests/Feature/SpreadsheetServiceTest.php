@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Models\Product;
 use App\Services\SpreadsheetService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Bus;
 use Tests\TestCase;
 use Mockery;
@@ -17,20 +16,39 @@ class SpreadsheetServiceTest extends TestCase
     use RefreshDatabase;
 
     /**
-     * Note: The processSpreadsheet method expects a 'code' field in the products table, but the migration does not define this field. This may cause tests to fail or the application to throw errors. Please ensure the schema matches the code logic.
+     * Test that the spreadsheet service skips invalid data
      */
-    public function test_process_spreadsheet_creates_products_and_dispatches_jobs()
+    public function test_process_spreadsheet_skips_invalid_data()
     {
-        // Mock the importer
+        // Mock the importer with valid and invalid data
         $importerMock = Mockery::mock();
         $importerMock->shouldReceive('import')->once()->andReturn([
             [
-                'code' => 'P001',
+                // Valid data
+                'product_code' => 'P001',
+                'name' => 'Test Product One',
+                'price' => 10.99,
                 'quantity' => 10,
             ],
             [
-                'code' => 'P002',
+                // Invalid data - missing product_code
+                'name' => 'Product Missing Code',
+                'price' => 5.99,
                 'quantity' => 5,
+            ],
+            [
+                // Invalid data - invalid quantity
+                'product_code' => 'P002',
+                'name' => 'Product Invalid Quantity',
+                'price' => 12.99,
+                'quantity' => 0, // Min is 1
+            ],
+            [
+                // Valid data
+                'product_code' => 'P003',
+                'name' => 'Test Product Three',
+                'price' => 15.99,
+                'quantity' => 15,
             ],
         ]);
         app()->instance('importer', $importerMock);
@@ -41,11 +59,17 @@ class SpreadsheetServiceTest extends TestCase
         $service = new SpreadsheetService();
         $service->processSpreadsheet('dummy.xlsx');
 
-        // Assert products are created
+        // Assert only valid products are created
         $this->assertDatabaseHas('products', ['code' => 'P001']);
-        $this->assertDatabaseHas('products', ['code' => 'P002']);
-
-        // Assert jobs are dispatched
+        $this->assertDatabaseHas('products', ['code' => 'P003']);
+        
+        // Assert invalid products are not created
+        $this->assertDatabaseMissing('products', ['code' => 'P002']);
+        
+        // Assert jobs are dispatched only for valid products
         Bus::assertDispatched(\App\Jobs\ProcessProductImage::class, 2);
+        
+        // Assert total number of products
+        $this->assertEquals(2, Product::count());
     }
 }
