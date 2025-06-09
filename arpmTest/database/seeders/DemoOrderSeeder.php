@@ -23,14 +23,14 @@ class DemoOrderSeeder extends Seeder
         $customer5 = Customer::create(['name' => 'Charlie Brown']);
 
         // Create products
-        $product1 = Product::create(['name' => 'Laptop', 'price' => 1200]);
-        $product2 = Product::create(['name' => 'Mouse', 'price' => 25]);
-        $product3 = Product::create(['name' => 'Keyboard', 'price' => 60]);
+        $product1 = Product::create(['name' => 'Laptop', 'price' => 1200, 'code' => 'LAP123']);
+        $product2 = Product::create(['name' => 'Mouse', 'price' => 25, 'code' => 'MOU456']);
+        $product3 = Product::create(['name' => 'Keyboard', 'price' => 60, 'code' => 'KEY789']);
 
         // More products
-        $product4 = Product::create(['name' => 'Monitor', 'price' => 300]);
-        $product5 = Product::create(['name' => 'USB Cable', 'price' => 10]);
-        $product6 = Product::create(['name' => 'Desk Lamp', 'price' => 45]);
+        $product4 = Product::create(['name' => 'Monitor', 'price' => 300, 'code' => 'MON321']);
+        $product5 = Product::create(['name' => 'USB Cable', 'price' => 10, 'code' => 'USB654']);
+        $product6 = Product::create(['name' => 'Desk Lamp', 'price' => 45, 'code' => 'LAM987']);
 
         // Create orders
         $order1 = Order::create([

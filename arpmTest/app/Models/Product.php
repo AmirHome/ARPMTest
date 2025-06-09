@@ -10,4 +10,5 @@ class Product extends Model
     {
         return $this->hasMany(CartItem::class);
     }
+    protected $fillable = ['code', 'quantity', 'name', 'price'];
 }
