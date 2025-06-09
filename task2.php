@@ -5,50 +5,63 @@ namespace App\Http\Controllers;
 use App\Models\Order;
 use App\Models\CartItem;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
 
 class OrderController extends Controller
 {
     public function index()
     {
-        $cacheKey = 'orders_index_data';
+        $orders = Order::all();
+        $orderData = [];
 
-        $orderData = Cache::remember($cacheKey, now()->addMinutes(10), function () {
-            $ordersData = collect(); // Initialize an empty collection
+        foreach ($orders as $order) {
+            $customer = $order->customer;
+            $items = $order->items;
+            $totalAmount = 0;
+            $itemsCount = 0;
 
-            Order::with(['customer', 'items.product'])
-                ->chunk(500, function ($orders) use ($ordersData) {
-                    $orderIds = $orders->pluck('id');
+            foreach ($items as $item) {
+                $product = $item->product;
+                $totalAmount += $item->price * $item->quantity;
+                $itemsCount++;
+            }
 
-                    $lastAddedCartItems = CartItem::whereIn('order_id', $orderIds)
-                        ->selectRaw('order_id, MAX(created_at) as last_added')
-                        ->groupBy('order_id')
-                        ->pluck('last_added', 'order_id');
+            $lastAddedToCart = CartItem::where('order_id', $order->id)
+                ->orderByDesc('created_at')
+                ->first()
+                ->created_at ?? null;
 
-                    $completedOrdersIds = Order::whereIn('id', $orderIds)
-                        ->where('status', 'completed')
-                        ->pluck('id')
-                        ->flip(); // Convert to array
+            $completedOrderExists = Order::where('id', $order->id)
+                ->where('status', 'completed')
+                ->exists();
 
-                    $chunkData = $orders->map(function ($order) use ($lastAddedCartItems, $completedOrdersIds) {
-                        return [
-                            'order_id' => $order->id,
-                            'customer_name' => $order->customer->name,
-                            'total_amount' => $order->items->sum(fn($item) => $item->price * $item->quantity),
-                            'items_count' => $order->items->count(),
-                            'last_added_to_cart' => $lastAddedCartItems[$order->id] ?? null,
-                            'completed_order_exists' => isset($completedOrdersIds[$order->id]),
-                            'created_at' => $order->created_at,
-                            'completed_at' => $order->completed_at,
-                        ];
-                    });
+            $orderData[] = [
+                'order_id' => $order->id,
+                'customer_name' => $customer->name,
+                'total_amount' => $totalAmount,
+                'items_count' => $itemsCount,
+                'last_added_to_cart' => $lastAddedToCart,
+                'completed_order_exists' => $completedOrderExists,
+                'created_at' => $order->created_at,
+            ];
+        }
 
-                    $ordersData->push(...$chunkData);
-                });
-            // usort on Eloquent
-            return $ordersData->sortByDesc('completed_at')->values()->all();
+        usort($orderData, function($a, $b) {
+            $aCompletedAt = Order::where('id', $a['order_id'])
+                ->where('status', 'completed')
+                ->orderByDesc('completed_at')
+                ->first()
+                ->completed_at ?? null;
+
+            $bCompletedAt = Order::where('id', $b['order_id'])
+                ->where('status', 'completed')
+                ->orderByDesc('completed_at')
+                ->first()
+                ->completed_at ?? null;
+
+            return strtotime($bCompletedAt) - strtotime($aCompletedAt);
         });
 
         return view('orders.index', ['orders' => $orderData]);
     }
 }
+
